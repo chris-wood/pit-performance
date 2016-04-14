@@ -1,4 +1,4 @@
-#include "../athena.c"
+#include <ccnx/forwarder/athena/athena_PIT.h>
 
 #include <errno.h>
 
@@ -10,81 +10,118 @@
 #include <ccnx/common/ccnx_NameSegmentNumber.h>
 #include <ccnx/common/internal/ccnx_InterestDefault.h>
 
-int
-main()
+#include <parc/algol/parc_SafeMemory.h>
+#include <parc/algol/parc_BufferComposer.h>
+#include <parc/algol/parc_LinkedList.h>
+#include <parc/algol/parc_Iterator.h>
+
+#include <parc/developer/parc_StopWatch.h>
+
+#include <stdio.h>
+#include <ctype.h>
+
+#define NUMBER_OF_LINKS 500
+
+PARCBufferComposer *
+readLine(FILE *fp)
 {
-    PARCURI *connectionURI;
-    Athena *athena = athena_Create(100);
-    CCNxName *name = ccnxName_CreateFromCString("lci:/foo/bar/baz");
-    CCNxInterest *interest = ccnxInterest_CreateSimple(name);
+    PARCBufferComposer *composer = parcBufferComposer_Create();
+    char curr = fgetc(fp);
+    while ((isalnum(curr) || curr == ':' || curr == '/' || curr == '.' ||
+            curr == '_' || curr == '(' || curr == ')' || curr == '[' ||
+            curr == ']' || curr == '-' || curr == '%' || curr == '+' ||
+            curr == '=' || curr == ';' || curr == '$' || curr == '\'') && curr != EOF) {
+        parcBufferComposer_PutChar(composer, curr);
+        curr = fgetc(fp);
+    }
+    return composer;
+}
 
-    uint64_t chunkNum = 0;
-    CCNxNameSegment *chunkSegment = ccnxNameSegmentNumber_Create(CCNxNameLabelType_CHUNK, chunkNum);
-    ccnxName_Append(name, chunkSegment);
-    ccnxNameSegment_Release(&chunkSegment);
+void
+usage()
+{
+    printf("pit_test <uri file> <arrival rate> <removal rate>\n");
+    printf("  - uri file: path to a file containing a set of line-separated URI strings\n");
+    printf("  - arrival rate: interest arrival rate (count per second)\n");
+    printf("  - removal rate: content object arrival (interest removal) rate (per second)\n");
+}
 
-    PARCBuffer *payload = parcBuffer_WrapCString("this is a payload");
-    CCNxContentObject *contentObject = ccnxContentObject_CreateWithNameAndPayload(name, payload);
-    parcBuffer_Release(&payload);
+int
+main(int argc, char *argv[argc])
+{
+    if (argc != 4) {
+        usage();
+        exit(-1);
+    }
 
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    uint64_t nowInMillis = (tv.tv_sec * 1000) + (tv.tv_usec / 1000);
-    ccnxContentObject_SetExpiryTime(contentObject, nowInMillis + 100000); // expire in 100 seconds
+    char *fname = argv[1];
+    int arrivalRate = atoi(argv[2]);
+    int removalRate = atoi(argv[3]);
 
-    connectionURI = parcURI_Parse("tcp://localhost:50100/listener/name=TCPListener");
-    const char *result = athenaTransportLinkAdapter_Open(athena->athenaTransportLinkAdapter, connectionURI);
-    assertTrue(result != NULL, "athenaTransportLinkAdapter_Open failed(%s)", strerror(errno));
-    parcURI_Release(&connectionURI);
+    FILE *file = fopen(fname, "r");
+    if (file == NULL) {
+        perror("Could not open file");
+        usage();
+        exit(-1);
+    }
 
-    connectionURI = parcURI_Parse("tcp://localhost:50100/name=TCP_0/local=false");
-    result = athenaTransportLinkAdapter_Open(athena->athenaTransportLinkAdapter, connectionURI);
-    assertTrue(result != NULL, "athenaTransportLinkAdapter_Open failed (%s)", strerror(errno));
-    parcURI_Release(&connectionURI);
+    // Create the PIT
+    AthenaPIT *pit = athenaPIT_Create();
 
-    connectionURI = parcURI_Parse("tcp://localhost:50100/name=TCP_1/local=false");
-    result = athenaTransportLinkAdapter_Open(athena->athenaTransportLinkAdapter, connectionURI);
-    assertTrue(result != NULL, "athenaTransportLinkAdapter_Open failed (%s)", strerror(errno));
-    parcURI_Release(&connectionURI);
+    PARCBitVector *egressVector = NULL;
 
-    int linkId = athenaTransportLinkAdapter_LinkNameToId(athena->athenaTransportLinkAdapter, "TCP_0");
-    PARCBitVector *interestIngressVector = parcBitVector_Create();
-    parcBitVector_Set(interestIngressVector, linkId);
+    size_t outstanding = 0;
+    size_t removedIndex = 0;
+    PARCLinkedList *interestList = parcLinkedList_Create();
 
-    linkId = athenaTransportLinkAdapter_LinkNameToId(athena->athenaTransportLinkAdapter, "TCP_1");
-    PARCBitVector *contentObjectIngressVector = parcBitVector_Create();
-    parcBitVector_Set(contentObjectIngressVector, linkId);
+    size_t num = 0;
+    do {
+        // if we're not full, then add
+        if (outstanding < arrivalRate) {
+            PARCBufferComposer *composer = readLine(file);
+            PARCBuffer *bufferString = parcBufferComposer_ProduceBuffer(composer);
+            if (parcBuffer_Remaining(bufferString) == 0) {
+                break;
+            }
 
-    athena_EncodeMessage(interest);
-    athena_EncodeMessage(contentObject);
+            char *string = parcBuffer_ToString(bufferString);
+            parcBufferComposer_Release(&composer);
 
-    // Before FIB entry interest should not be forwarded
-    athena_ProcessMessage(athena, interest, interestIngressVector);
+            PARCBitVector *ingressVector = parcBitVector_Create();
+            parcBitVector_Set(ingressVector, num % NUMBER_OF_LINKS);
 
-    // Add route for interest, it should now be forwarded
-    athenaFIB_AddRoute(athena->athenaFIB, name, contentObjectIngressVector);
-    CCNxName *defaultName = ccnxName_CreateFromCString("lci:/");
-    athenaFIB_AddRoute(athena->athenaFIB, defaultName, contentObjectIngressVector);
-    ccnxName_Release(&defaultName);
+            fprintf(stderr, "Read: %s\n", string);
 
+            // Create the original name and store it for later
+            CCNxName *name = ccnxName_CreateFromCString(string);
+            CCNxInterest *interest = ccnxInterest_CreateSimple(name);
 
+            // Insert into the PIT
+            PARCStopwatch *timer = parcStopwatch_Create();
+            parcStopwatch_Start(timer);
+            uint64_t startTime = parcStopwatch_ElapsedTimeNanos(timer);
 
+            AthenaPITResolution addResult =
+                athenaPIT_AddInterest(pit, interest, ingressVector, &egressVector);
+            uint64_t endTime = parcStopwatch_ElapsedTimeNanos(timer);
 
-    // Process exact interest match
-    athena_ProcessMessage(athena, interest, interestIngressVector);
+            // TODO: do something with the timer
 
+            parcLinkedList_Append(interestList, interest);
 
+            // Update state
+            outstanding++;
+            num++;
+        } else {
+            PARCBitVector *ingressVector = parcBitVector_Create();
+            parcBitVector_Set(ingressVector, removedIndex % NUMBER_OF_LINKS);
+            CCNxInterest *interest = parcLinkedList_GetAtIndex(interestList, removedIndex);
 
+            athenaPIT_RemoveInterest(pit, interest, ingressVector);
 
-    // Create a matching content object that the store should retain and reply to the following interest with
-    athena_ProcessMessage(athena, contentObject, contentObjectIngressVector);
-    athena_ProcessMessage(athena, interest, interestIngressVector);
-
-    parcBitVector_Release(&interestIngressVector);
-    parcBitVector_Release(&contentObjectIngressVector);
-
-    ccnxName_Release(&name);
-    ccnxInterest_Release(&interest);
-    ccnxInterest_Release(&contentObject);
-    athena_Release(&athena);
+            // Update state
+            removedIndex++;
+            outstanding--;
+        }
+    } while (true);
 }
