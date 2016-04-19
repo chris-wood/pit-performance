@@ -7,9 +7,10 @@ REMOVALS=( 10 100 200 300 400 )
 
 for AR in "${ARRIVALS[@]}"
 do
-    for RR in "#{REMOVALS[@]}"
+    for RR in "${REMOVALS[@]}"
     do
-        OUT=${URI_FILE}_${AR}_${RR}.csv
-        ./pit_test ${URI_FILE} ${LINES} ${AR} ${RR} > $OUT
+        FILE=${URI_FILE##*/}
+        OUT=${FILE%.*}_${AR}_${RR}.csv
+        #./pit_test ${URI_FILE} ${LINES} ${AR} ${RR} > $OUT
     done 
 done
