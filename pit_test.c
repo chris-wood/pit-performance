@@ -105,6 +105,10 @@ _insertPITEntry(FILE *file, PARCLinkedList *interestList, AthenaPIT *pit, size_t
     parcBitVector_Set(ingressVector, index % NUMBER_OF_LINKS);
 
     char *string = _getNextURL(file);
+    if (string == NULL) {
+        fprintf(stderr, "Done.\n");
+        exit(-1);
+    }
     fprintf(stderr, "Read: %s\n", string);
 
     // Create the original name and store it for later
@@ -180,7 +184,7 @@ main(int argc, char *argv[argc])
                 // Update state
                 totalNum++;
                 outstanding++;
-                if (numSent == removalRate) {
+                if (totalNum == removalRate) {
                     fillingWindow = false;
                 }
 
