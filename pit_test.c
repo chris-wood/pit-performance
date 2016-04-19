@@ -61,6 +61,83 @@ usage()
 // TODO: move interest creation code to a function
 // TODO: also include name segment count and overall length
 
+static char *
+_getNextURL(FILE *file)
+{
+    PARCBufferComposer *composer = _readLine(file, parcBufferComposer_Create());
+    PARCBuffer *bufferString = parcBufferComposer_ProduceBuffer(composer);
+    if (parcBuffer_Remaining(bufferString) == 0) {
+        return NULL;
+    }
+
+    char *string = parcBuffer_ToString(bufferString);
+    parcBufferComposer_Release(&composer);
+
+    if (strstr(string, "lci:/") == NULL || strstr(string, "ccnx:/") == NULL) {
+        PARCBufferComposer *newComposer = parcBufferComposer_Create();
+
+        parcBufferComposer_Format(newComposer, "ccnx:/%s", string);
+        PARCBuffer *newBuffer = parcBufferComposer_ProduceBuffer(newComposer);
+        parcBufferComposer_Release(&newComposer);
+
+        parcMemory_Deallocate(&string);
+        string = parcBuffer_ToString(newBuffer);
+        parcBuffer_Release(&newBuffer);
+    }
+
+    return string;
+}
+
+typedef struct {
+    ssize_t totalTime;
+    size_t nameLength;
+    size_t numberOfComponents;
+} _PITInsertResult;
+
+static _PITInsertResult *
+_insertPITEntry(FILE *file, PARCLinkedList *interestList, AthenaPIT *pit, size_t index)
+{
+    _PITInsertResult *result = malloc(sizeof(_PITInsertResult));
+
+    PARCBitVector *egressVector = NULL;
+
+    PARCBitVector *ingressVector = parcBitVector_Create();
+    parcBitVector_Set(ingressVector, index % NUMBER_OF_LINKS);
+
+    char *string = _getNextURL(file);
+    fprintf(stderr, "Read: %s\n", string);
+
+    // Create the original name and store it for later
+    CCNxName *name = ccnxName_CreateFromCString(string);
+    if (name == NULL) {
+        return NULL;
+    }
+    CCNxInterest *interest = ccnxInterest_CreateSimple(name);
+
+    // Start a timer
+    PARCStopwatch *timer = parcStopwatch_Create();
+    parcStopwatch_Start(timer);
+
+    // Insert into the PIT
+    uint64_t startTime = parcStopwatch_ElapsedTimeNanos(timer);
+    athenaPIT_AddInterest(pit, interest, ingressVector, &egressVector);
+    uint64_t endTime = parcStopwatch_ElapsedTimeNanos(timer);
+
+    // Save the result data
+    result->totalTime = (endTime - startTime);
+    result->nameLength = strlen(string);
+    result->numberOfComponents = ccnxName_GetSegmentCount(name);
+
+    parcMemory_Deallocate(&string);
+    parcLinkedList_Append(interestList, interest);
+    parcBitVector_Release(&ingressVector);
+    parcStopwatch_Release(&timer);
+    ccnxName_Release(&name);
+    ccnxInterest_Release(&interest);
+
+    return result;
+}
+
 int
 main(int argc, char *argv[argc])
 {
@@ -84,8 +161,6 @@ main(int argc, char *argv[argc])
     // Create the PIT
     AthenaPIT *pit = athenaPIT_Create();
 
-    PARCBitVector *egressVector = NULL;
-
     // Initialize the state
     size_t outstanding = 0;
     size_t removedIndex = 0;
@@ -96,131 +171,44 @@ main(int argc, char *argv[argc])
     ssize_t numSent = 0;
     ssize_t numToReceive = 1;
     ssize_t numReceived = 0;
-    bool sending = arrivalRate - removalRate > 0 ? true : false;
     bool fillingWindow = true;
     while (totalNum < totalNumberToProcess) {
         if (fillingWindow) {
-            PARCBufferComposer *composer = _readLine(file, parcBufferComposer_Create());
-            PARCBuffer *bufferString = parcBufferComposer_ProduceBuffer(composer);
-            if (parcBuffer_Remaining(bufferString) == 0) {
-                return 0;
-                break;
+            // Insert the new PIT entry
+            _PITInsertResult *result = _insertPITEntry(file, interestList, pit, totalNum);
+            if (result != NULL) {
+                // Update state
+                totalNum++;
+                outstanding++;
+                if (numSent == removalRate) {
+                    fillingWindow = false;
+                }
+
+                // Display the results
+                printf("%zu,%zu,%zu,%zu,%zu\n", totalNum, outstanding, result->numberOfComponents, result->nameLength, result->totalTime);
             }
-
-            char *string = parcBuffer_ToString(bufferString);
-            parcBufferComposer_Release(&composer);
-
-            if (strstr(string, "lci:/") == NULL || strstr(string, "ccnx:/") == NULL) {
-                PARCBufferComposer *newComposer = parcBufferComposer_Create();
-
-                parcBufferComposer_Format(newComposer, "ccnx:/%s", string);
-                PARCBuffer *newBuffer = parcBufferComposer_ProduceBuffer(newComposer);
-                parcBufferComposer_Release(&newComposer);
-
-                parcMemory_Deallocate(&string);
-                string = parcBuffer_ToString(newBuffer);
-                parcBuffer_Release(&newBuffer);
-            }
-
-            PARCBitVector *ingressVector = parcBitVector_Create();
-            parcBitVector_Set(ingressVector, totalNum % NUMBER_OF_LINKS);
-
-            fprintf(stderr, "Read: %s\n", string);
-
-            // Create the original name and store it for later
-            CCNxName *name = ccnxName_CreateFromCString(string);
-            if (name == NULL) {
-                continue;
-            }
-            CCNxInterest *interest = ccnxInterest_CreateSimple(name);
-
-            // Insert into the PIT
-            PARCStopwatch *timer = parcStopwatch_Create();
-            parcStopwatch_Start(timer);
-            uint64_t startTime = parcStopwatch_ElapsedTimeNanos(timer);
-
-            AthenaPITResolution addResult =
-                athenaPIT_AddInterest(pit, interest, ingressVector, &egressVector);
-            uint64_t endTime = parcStopwatch_ElapsedTimeNanos(timer);
-
-            // TODO: do something with the timer
-
-            parcLinkedList_Append(interestList, interest);
-
-            // Update state
-            totalNum++;
-            outstanding++;
-            if (numSent == removalRate) {
-                fillingWindow = false;
-            }
-
-            // Print the output
-            ssize_t totalTime = endTime - startTime;
-            printf("%zu,%zu,%zu,%zu\n", totalNum, outstanding, strlen(string), totalTime);
-
         } else if (numSent != numToSend) {
-            PARCBufferComposer *composer = _readLine(file, parcBufferComposer_Create());
-            PARCBuffer *bufferString = parcBufferComposer_ProduceBuffer(composer);
-            if (parcBuffer_Remaining(bufferString) == 0) {
-                return 0;
-                break;
+            // Insert the new PIT entry
+            _PITInsertResult *result = _insertPITEntry(file, interestList, pit, totalNum);
+            if (result != NULL) {
+                // Update state
+                totalNum++;
+                numSent++;
+                outstanding++;
+                if (numSent >= numToSend) {
+                    numReceived = 0;
+                }
+
+                // Display the results
+                printf("%zu,%zu,%zu,%zu,%zu\n", totalNum, outstanding, result->numberOfComponents, result->nameLength, result->totalTime);
             }
-
-            char *string = parcBuffer_ToString(bufferString);
-            parcBufferComposer_Release(&composer);
-
-            if (strstr(string, "lci:/") == NULL || strstr(string, "ccnx:/") == NULL) {
-                PARCBufferComposer *newComposer = parcBufferComposer_Create();
-
-                parcBufferComposer_Format(newComposer, "ccnx:/%s", string);
-                PARCBuffer *newBuffer = parcBufferComposer_ProduceBuffer(newComposer);
-                parcBufferComposer_Release(&newComposer);
-
-                parcMemory_Deallocate(&string);
-                string = parcBuffer_ToString(newBuffer);
-                parcBuffer_Release(&newBuffer);
-            }
-
-            PARCBitVector *ingressVector = parcBitVector_Create();
-            parcBitVector_Set(ingressVector, totalNum % NUMBER_OF_LINKS);
-
-            fprintf(stderr, "Read: %s\n", string);
-
-            // Create the original name and store it for later
-            CCNxName *name = ccnxName_CreateFromCString(string);
-            if (name == NULL) {
-                continue;
-            }
-            CCNxInterest *interest = ccnxInterest_CreateSimple(name);
-
-            // Insert into the PIT
-            PARCStopwatch *timer = parcStopwatch_Create();
-            parcStopwatch_Start(timer);
-            uint64_t startTime = parcStopwatch_ElapsedTimeNanos(timer);
-
-            AthenaPITResolution addResult =
-                athenaPIT_AddInterest(pit, interest, ingressVector, &egressVector);
-            uint64_t endTime = parcStopwatch_ElapsedTimeNanos(timer);
-
-            parcLinkedList_Append(interestList, interest);
-
-            // Update state
-            totalNum++;
-            numSent++;
-            outstanding++;
-            if (numSent >= numToSend) {
-                numReceived = 0;
-            }
-
-            // Print the output
-            ssize_t totalTime = endTime - startTime;
-            printf("%zu,%zu,%zu,%zu\n", totalNum, outstanding, strlen(string), totalTime);
         } else {
             PARCBitVector *ingressVector = parcBitVector_Create();
             parcBitVector_Set(ingressVector, removedIndex % NUMBER_OF_LINKS);
             CCNxInterest *interest = parcLinkedList_GetAtIndex(interestList, removedIndex);
 
             athenaPIT_RemoveInterest(pit, interest, ingressVector);
+            parcBitVector_Release(&ingressVector);
 
             // Update state
             removedIndex++;
