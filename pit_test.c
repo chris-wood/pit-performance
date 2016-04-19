@@ -113,7 +113,7 @@ _insertPITEntry(FILE *file, PARCLinkedList *interestList, AthenaPIT *pit, size_t
     if (string == NULL) {
         return NULL;
     }
-    fprintf(stderr, "Read: %s\n", string);
+    //fprintf(stderr, "Read: %s\n", string);
 
     // Create the original name and store it for later
     CCNxName *name = ccnxName_CreateFromCString(string);
