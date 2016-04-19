@@ -44,6 +44,11 @@ _readLine(FILE *fp, PARCBufferComposer *composer)
         curr = fgetc(fp);
     }
 
+    if (curr == EOF) {
+        fprintf(stderr, "Done.\n");
+        exit(-1);
+    }
+
     return composer;
 }
 
@@ -106,8 +111,7 @@ _insertPITEntry(FILE *file, PARCLinkedList *interestList, AthenaPIT *pit, size_t
 
     char *string = _getNextURL(file);
     if (string == NULL) {
-        fprintf(stderr, "Done.\n");
-        exit(-1);
+        return NULL;
     }
     fprintf(stderr, "Read: %s\n", string);
 
