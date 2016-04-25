@@ -15,7 +15,7 @@
 #include <parc/algol/parc_LinkedList.h>
 #include <parc/algol/parc_Iterator.h>
 
-#include <parc/developer/parc_StopWatch.h>
+#include <parc/developer/parc_Stopwatch.h>
 
 #include <stdio.h>
 #include <ctype.h>
@@ -227,4 +227,6 @@ main(int argc, char *argv[argc])
             }
         }
     }
+
+    return 0;
 }
