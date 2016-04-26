@@ -181,6 +181,9 @@ main(int argc, char *argv[argc])
     ssize_t numReceived = 0;
     bool fillingWindow = true;
     while (totalNum < totalNumberToProcess) {
+        if (totalNum % 10000 == 0) {
+	    fprintf(stderr, "%zu\n", totalNum);
+        }
         if (fillingWindow) {
             // Insert the new PIT entry
             _PITInsertResult *result = _insertPITEntry(file, interestList, pit, totalNum);
@@ -208,6 +211,9 @@ main(int argc, char *argv[argc])
                 }
 
                 // Display the results
+                if (totalNum % 10000 == 0) {
+                    fprintf(stderr, "%zu,%zu,%zu,%zu,%zu\n", totalNum, outstanding, result->numberOfComponents, result->nameLength, result->totalTime);
+                }
                 printf("%zu,%zu,%zu,%zu,%zu\n", totalNum, outstanding, result->numberOfComponents, result->nameLength, result->totalTime);
             }
         } else {
