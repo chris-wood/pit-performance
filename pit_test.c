@@ -180,10 +180,16 @@ main(int argc, char *argv[argc])
     ssize_t numToReceive = 1;
     ssize_t numReceived = 0;
     bool fillingWindow = true;
+
+    // Print the arrival/removal rate to start (for the plotter)
+    printf("%d\n", arrivalRate);
+
     while (totalNum < totalNumberToProcess) {
+
         if (totalNum % 10000 == 0) {
-	    fprintf(stderr, "%zu\n", totalNum);
+            fprintf(stderr, "%zu\n", totalNum);
         }
+
         if (fillingWindow) {
             // Insert the new PIT entry
             _PITInsertResult *result = _insertPITEntry(file, interestList, pit, totalNum);
@@ -191,6 +197,7 @@ main(int argc, char *argv[argc])
                 // Update state
                 totalNum++;
                 outstanding++;
+
                 if (totalNum == removalRate) {
                     fillingWindow = false;
                 }
@@ -221,7 +228,10 @@ main(int argc, char *argv[argc])
             parcBitVector_Set(ingressVector, removedIndex % NUMBER_OF_LINKS);
             CCNxInterest *interest = parcLinkedList_GetAtIndex(interestList, removedIndex);
 
-            athenaPIT_RemoveInterest(pit, interest, ingressVector);
+            if (!athenaPIT_RemoveInterest(pit, interest, ingressVector)) {
+                printf("WTF!\n");
+            }
+            // printf("%zu\n", athenaPIT_GetNumberOfTableEntries(pit));
             parcBitVector_Release(&ingressVector);
 
             // Update state
