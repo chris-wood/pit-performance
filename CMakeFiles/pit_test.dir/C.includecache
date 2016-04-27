@@ -424,7 +424,7 @@ parc/algol/parc_URISegment.h
 parc/algol/parc_BufferComposer.h
 -
 
-/Users/cwood/PARC/side/Improvements/src/Libparc/parc/developer/parc_StopWatch.h
+/Users/cwood/PARC/side/Improvements/src/Libparc/parc/developer/parc_Stopwatch.h
 stdbool.h
 -
 stdarg.h
@@ -737,7 +737,7 @@ parc/algol/parc_LinkedList.h
 -
 parc/algol/parc_Iterator.h
 -
-parc/developer/parc_StopWatch.h
+parc/developer/parc_Stopwatch.h
 -
 stdio.h
 -

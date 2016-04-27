@@ -50,7 +50,7 @@ CMakeFiles/pit_test.dir/pit_test.c.o
  /Users/cwood/PARC/side/Improvements/src/Libparc/parc/algol/parc_URI.h
  /Users/cwood/PARC/side/Improvements/src/Libparc/parc/algol/parc_URIPath.h
  /Users/cwood/PARC/side/Improvements/src/Libparc/parc/algol/parc_URISegment.h
- /Users/cwood/PARC/side/Improvements/src/Libparc/parc/developer/parc_StopWatch.h
+ /Users/cwood/PARC/side/Improvements/src/Libparc/parc/developer/parc_Stopwatch.h
  /Users/cwood/PARC/side/Improvements/src/Libparc/parc/security/parc_CryptoHash.h
  /Users/cwood/PARC/side/Improvements/src/Libparc/parc/security/parc_CryptoHashType.h
  /Users/cwood/PARC/side/Improvements/src/Libparc/parc/security/parc_CryptoHasher.h

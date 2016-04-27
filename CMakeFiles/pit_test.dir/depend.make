@@ -49,7 +49,7 @@ CMakeFiles/pit_test.dir/pit_test.c.o: /Users/cwood/PARC/side/Improvements/src/Li
 CMakeFiles/pit_test.dir/pit_test.c.o: /Users/cwood/PARC/side/Improvements/src/Libparc/parc/algol/parc_URI.h
 CMakeFiles/pit_test.dir/pit_test.c.o: /Users/cwood/PARC/side/Improvements/src/Libparc/parc/algol/parc_URIPath.h
 CMakeFiles/pit_test.dir/pit_test.c.o: /Users/cwood/PARC/side/Improvements/src/Libparc/parc/algol/parc_URISegment.h
-CMakeFiles/pit_test.dir/pit_test.c.o: /Users/cwood/PARC/side/Improvements/src/Libparc/parc/developer/parc_StopWatch.h
+CMakeFiles/pit_test.dir/pit_test.c.o: /Users/cwood/PARC/side/Improvements/src/Libparc/parc/developer/parc_Stopwatch.h
 CMakeFiles/pit_test.dir/pit_test.c.o: /Users/cwood/PARC/side/Improvements/src/Libparc/parc/security/parc_CryptoHash.h
 CMakeFiles/pit_test.dir/pit_test.c.o: /Users/cwood/PARC/side/Improvements/src/Libparc/parc/security/parc_CryptoHashType.h
 CMakeFiles/pit_test.dir/pit_test.c.o: /Users/cwood/PARC/side/Improvements/src/Libparc/parc/security/parc_CryptoHasher.h
