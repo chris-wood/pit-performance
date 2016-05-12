@@ -65,3 +65,4 @@ ax.legend(bars, labels)
 
 
 plt.show()
+fig.savefig("data.png")
