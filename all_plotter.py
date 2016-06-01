@@ -54,15 +54,17 @@ for key in keys:
     print key
     bar_keys.append((key, bar))
 
+ax.set_xlabel("Number of Segments")
 ax.set_ylabel("Time (ms)")
-ax.set_title("PIT Insertion and Lookup Time")
+# ax.set_title("PIT Insertion and Lookup Time")
 ax.set_xticks(ind + width)
 ax.set_xticklabels(tuple(range(1, max_segments + 1)))
 
 bars = map(lambda (k, b) : b, bar_keys)
-labels = map(lambda (k, b): str(k), bar_keys)
+labels = map(lambda (k, b): str(k) + " Entries", bar_keys)
 ax.legend(bars, labels)
 
+# plt.legend(title="Average PIT Size")
 
 plt.show()
 fig.savefig("data.png")

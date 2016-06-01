@@ -4,6 +4,8 @@
 
 #include <ccnx/forwarder/athena/athena_PIT.h>
 
+#include <parc/logging/parc_LogReporterTextStdout.h>
+
 #include <ccnx/forwarder/metis/core/metis_Forwarder.h>
 #include <ccnx/forwarder/metis/processor/metis_PIT.h>
 #include <ccnx/forwarder/metis/processor/metis_StandardPIT.h>
@@ -126,7 +128,7 @@ typedef struct {
 } _PITInsertResult;
 
 static _PITInsertResult *
-_insertPITEntryMetis(FILE *file, PARCLinkedList *interestList, MetisPIT *pit, size_t index)
+_insertPITEntryMetis(FILE *file, PARCLinkedList *interestList, MetisPIT *pit, size_t index, MetisLogger *logger)
 {
     _PITInsertResult *result = malloc(sizeof(_PITInsertResult));
 
@@ -150,7 +152,7 @@ _insertPITEntryMetis(FILE *file, PARCLinkedList *interestList, MetisPIT *pit, si
     CCNxInterest *interest = ccnxInterest_CreateSimple(name);
     PARCBuffer *buffer = _encodeDictionary(interest);
 
-    MetisMessage *interestMessage = metisMessage_CreateFromParcBuffer(buffer, ingressConnectionId, index, NULL);
+    MetisMessage *interestMessage = metisMessage_CreateFromParcBuffer(buffer, ingressConnectionId, index, logger);
 
     // Start a timer
     PARCStopwatch *timer = parcStopwatch_Create();
@@ -185,7 +187,7 @@ testMetis(char *fname, size_t totalNumberToProcess, int arrivalRate, int removal
         usage();
         exit(-1);
     }
-    
+
     size_t outstanding = 0;
     size_t removedIndex = 0;
     PARCLinkedList *interestList = parcLinkedList_Create();
@@ -197,7 +199,10 @@ testMetis(char *fname, size_t totalNumberToProcess, int arrivalRate, int removal
     ssize_t numReceived = 0;
     bool fillingWindow = true;
 
-    MetisForwarder *metis = metisForwarder_Create(NULL);
+    PARCLogReporter *reporter = parcLogReporterTextStdout_Create();
+    MetisLogger *logger = metisLogger_Create(reporter, parcClock_Wallclock());
+
+    MetisForwarder *metis = metisForwarder_Create(logger);
     MetisPIT *pit = metisStandardPIT_Create(metis);
 
     // TODO: generalize or duplicate the logic down below
@@ -214,7 +219,7 @@ testMetis(char *fname, size_t totalNumberToProcess, int arrivalRate, int removal
 
         if (fillingWindow) {
             // Insert the new PIT entry
-            _PITInsertResult *result = _insertPITEntryMetis(file, interestList, pit, totalNum);
+            _PITInsertResult *result = _insertPITEntryMetis(file, interestList, pit, totalNum, logger);
 
             if (result != NULL) {
                 // Update state
@@ -230,7 +235,7 @@ testMetis(char *fname, size_t totalNumberToProcess, int arrivalRate, int removal
             }
         } else if (numSent != numToSend) {
             // Insert the new PIT entry
-            _PITInsertResult *result = _insertPITEntryMetis(file, interestList, pit, totalNum);
+            _PITInsertResult *result = _insertPITEntryMetis(file, interestList, pit, totalNum, logger);
 
             if (result != NULL) {
                 // Update state
@@ -253,7 +258,7 @@ testMetis(char *fname, size_t totalNumberToProcess, int arrivalRate, int removal
             CCNxInterest *interest = parcLinkedList_GetAtIndex(interestList, removedIndex);
             PARCBuffer *interestBuffer = _encodeDictionary(interest);
 
-            MetisMessage *interestMessage = metisMessage_CreateFromParcBuffer(interestBuffer, removedIndex % NUMBER_OF_LINKS, removedIndex, NULL);
+            MetisMessage *interestMessage = metisMessage_CreateFromParcBuffer(interestBuffer, removedIndex % NUMBER_OF_LINKS, removedIndex, logger);
 
             pit->removeInterest(pit, interestMessage);
 
