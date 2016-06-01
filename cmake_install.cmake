@@ -1,4 +1,4 @@
-# Install script for directory: /Users/cwood/Projects/pit-performance
+# Install script for directory: /Users/cwood/dev/pit-performance
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -28,12 +28,18 @@ if(NOT CMAKE_INSTALL_COMPONENT)
 endif()
 
 if(NOT CMAKE_INSTALL_COMPONENT OR "${CMAKE_INSTALL_COMPONENT}" STREQUAL "Unspecified")
-  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/bin" TYPE EXECUTABLE FILES "/Users/cwood/Projects/pit-performance/pit_test")
+  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/bin" TYPE EXECUTABLE FILES "/Users/cwood/dev/pit-performance/pit_test")
   if(EXISTS "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/pit_test" AND
      NOT IS_SYMLINK "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/pit_test")
     execute_process(COMMAND /usr/bin/install_name_tool
+      -delete_rpath "/Users/cwood/PARC/side/Improvements/src/Metis"
+      "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/pit_test")
+    execute_process(COMMAND /usr/bin/install_name_tool
       -delete_rpath "/Users/cwood/PARC/side/Improvements/usr/lib"
       "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/pit_test")
+    if(CMAKE_INSTALL_DO_STRIP)
+      execute_process(COMMAND "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/strip" "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/pit_test")
+    endif()
   endif()
 endif()
 
@@ -45,5 +51,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "/Users/cwood/Projects/pit-performance/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "/Users/cwood/dev/pit-performance/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")
